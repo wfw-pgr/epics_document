@@ -1,0 +1,388 @@
+
+
+<!doctype html>
+
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>基本動作例１： Googleにtelnet接続するEPICS制御 &#8212; EPICSの備忘録  ドキュメント</title>
+    <link rel="stylesheet" href="../../_static/bizstyle.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../_static/translations.js"></script>
+    <script src="../../_static/bizstyle.js"></script>
+    <link rel="index" title="索引" href="../../genindex.html" />
+    <link rel="search" title="検索" href="../../search.html" />
+    <link rel="next" title="基本動作例２： ArduinoのAD変換端子からの入力読取り" href="example2__arduino_ADConvertor.html" />
+    <link rel="prev" title="EPICSの用語集" href="vocabulary.html" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <!--[if lt IE 9]>
+    <script src="_static/css3-mediaqueries.js"></script>
+    <![endif]-->
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>ナビゲーション</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="総合索引"
+             accesskey="I">索引</a></li>
+        <li class="right" >
+          <a href="example2__arduino_ADConvertor.html" title="基本動作例２： ArduinoのAD変換端子からの入力読取り"
+             accesskey="N">次へ</a> |</li>
+        <li class="right" >
+          <a href="vocabulary.html" title="EPICSの用語集"
+             accesskey="P">前へ</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">EPICSの備忘録  ドキュメント</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="epics_index.html" accesskey="U">EPICSとは</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">基本動作例１： Googleにtelnet接続するEPICS制御</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="googletelnetepics">
+<h1>基本動作例１： Googleにtelnet接続するEPICS制御<a class="headerlink" href="#googletelnetepics" title="このヘッドラインへのパーマリンク">¶</a></h1>
+<div class="section" id="id1">
+<h2>検証目標<a class="headerlink" href="#id1" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<ul>
+<li><p>IOCを構築．</p></li>
+<li><p>IOCの動作検証．</p></li>
+<li><p>IOCとOPI間で通信する．</p>
+<p>( IOC:Input/Output Controller, OPI:OPerational Interface )</p>
+</li>
+</ul>
+</div>
+<div class="section" id="id2">
+<h2>前提条件<a class="headerlink" href="#id2" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<ul class="simple">
+<li><p>IOCとして <strong>&quot;RaspberryPi&quot;</strong> 、OPIとして、手元PCのmacOSを使用する．</p></li>
+<li><p>RaspberryPi-mac間はLANケーブルで接続し、RaspberryPiはインターネットへ接続できる．(同一LAN内.)</p></li>
+<li><p>接続先は、適当なサーバ：www.google.com:80 (80はHTML通信用のウェルノウンポート) とし、HTTPリクエストする．</p></li>
+<li><p>制御モジュールとして、 <strong>&quot;StremDevice&quot;</strong> を使用する．</p></li>
+<li><p>IOC(RaspberryPi)に、epics-base, Asyn, StreamDevice はインストール済み</p></li>
+<li><p>OPI(macOS)からは,  pythonコンソールから <strong>&quot;pyEpics&quot;</strong> (pipからインストール可能)を利用する．</p></li>
+<li><p>EPICS_BASEは、&quot;$HOME/epics/epics-base&quot;, サポートモジュールは、&quot;$HOME/epics/support/&quot;にインストールされており、 Appの作成場所は, &quot;$HOME/epics/app/&quot;とする．</p></li>
+</ul>
+</div>
+<div class="section" id="ioc">
+<h2>IOC構築<a class="headerlink" href="#ioc" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<div class="section" id="id3">
+<h3>IOC構築の手順<a class="headerlink" href="#id3" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul class="simple">
+<li><p>IOC-App(アプリ)構築の基本手順は、以下である．</p>
+<ol class="arabic simple">
+<li><p><strong>ベースアプリ</strong> を作成する．</p></li>
+<li><p><strong>configure/RELEASE</strong> にコンパイルに必要な情報(EPICS_BASEのパス/モジュールのパス)を記載する．</p></li>
+<li><p><strong>&quot;xxxApp&quot;</strong> ディレクトリに、データベース及び使用するモジュールの情報を記載する．</p></li>
+<li><p>StreamDeviceなどモジュールを利用する際は、モジュールに応じた設定ファイル（例えばStreamDeviceの場合、 <strong>protocols</strong> ディレクトリに <strong>xxx.proto</strong> ） を作成する．</p></li>
+<li><p><strong>iocBoot</strong> ディレクトリの <strong>ioc_xxx**内にあるIOC初期化スクリプト **&quot;st.cmd&quot;</strong> を編集し、実行可能とする．</p></li>
+<li><p>アプリのベースディレクトリ（$(TOP)としてMakefile中に記載されている）にて、 $ make 、したのちに、sudo 権限付きで IOC初期化スクリプト &quot;st.cmd&quot; を実行する</p></li>
+</ol>
+</li>
+</ul>
+<p>以下、上記手順について詳述する．</p>
+</div>
+<div class="section" id="id4">
+<h3>1. ベースアプリの作成<a class="headerlink" href="#id4" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>makeBaseApp.plを用いたベースアプリの作成</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ mkdir -p ~/epics/app/http_req
+$ cd  ~/epics/app/http_req
+$ makeBaseApp.pl -t ioc http_req
+$ makeBaseApp.pl -i -t ioc http_req
+</pre></div>
+</div>
+</li>
+<li><p>1回目のmakeBaseApp.plで作成されるファイル・ディレクトリは以下．</p>
+<ul class="simple">
+<li><p>Makefile</p></li>
+<li><p>configure</p></li>
+<li><p>http_reqApp</p></li>
+</ul>
+</li>
+<li><p>2回目のmakeBaseApp.plで作成されるファイル・ディレクトリは以下．</p>
+<ul class="simple">
+<li><p>iocBoot</p></li>
+</ul>
+</li>
+<li><p>ディレクトリツリーは以下．</p>
+<a class="reference internal image-reference" href="../../_images/DirectoryTree_makeBaseApp.png"><img alt="../../_images/DirectoryTree_makeBaseApp.png" class="align-center" src="../../_images/DirectoryTree_makeBaseApp.png" style="width: 600px;" /></a>
+</li>
+</ul>
+</div>
+<div class="section" id="configure-release">
+<h3>2. 共通コンパイル設定事項の編集 ( configure/RELEASE )<a class="headerlink" href="#configure-release" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>configure/RELEASEに、共通のコンパイル設定（モジュールの場所等、）を例えば以下のように記載する．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ASYN</span>   <span class="o">=</span> <span class="o">/</span><span class="n">home</span><span class="o">/</span><span class="n">epics</span><span class="o">/</span><span class="n">epics</span><span class="o">/</span><span class="n">support</span><span class="o">/</span><span class="n">asyn</span>
+<span class="n">STREAM</span> <span class="o">=</span> <span class="o">/</span><span class="n">home</span><span class="o">/</span><span class="n">epics</span><span class="o">/</span><span class="n">epics</span><span class="o">/</span><span class="n">support</span><span class="o">/</span><span class="n">StreamDevice</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="id5">
+<h3>3. データベースファイルとコンパイルの準備<a class="headerlink" href="#id5" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>データベース及び使用するモジュールの情報を記載し、~/epics/app/http_req/http_reqApp/Db/http_req.dbを作成する．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ nano ~/epics/app/http_req/http_reqApp/Db/http_req.db
+( 以下を保存 )
+record( stringin, &quot;http:get&quot; )
+{
+field( DESC, &quot;getbitstream&quot; )
+field( DTYP, &quot;stream&quot; )
+field( INP , &quot;@http_req.proto getVal web&quot;)
+}
+</pre></div>
+</div>
+</li>
+<li><p>データベースのコンパイル対象として、上記の&quot;http_req.db&quot;を追加．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ nano ~/epics/app/http_req/http_reqApp/Db/Makefile
+( 以下を追記 )
+DB += http_req.db
+</pre></div>
+</div>
+</li>
+<li><p>その他モジュールを利用する場合は、IOCの通信コードのコンパイルに使用するモジュール情報を、 &quot;http_reqApp/src/Makefile&quot; に記載し、コンパイルできるようにする．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ nano ~/epics/app/http_req/http_reqApp/src/Makefile
+( 以下を追記 )
+http_req_DBD  += stream.dbd
+http_req_DBD  += asyn.dbd
+http_req_DBD  += drvAsynIPPort.dbd
+
+http_req_LIBS += stream
+http_req_LIBS += asyn
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="streamdevice-protocol">
+<h3>4. StreamDeviceの設定ファイル ( &quot;protocol&quot; )の作成<a class="headerlink" href="#streamdevice-protocol" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>アプリのベースディレクトリ ( ~/epics/app/http_req/ )にディレクトリ &quot;protocols&quot;を作成し、StreamDeviceの入出力情報を記載する．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ mkdir $HOME/epics/app/http_req/protocols
+$ nano http_req.proto
+
+(以下を記入)
+Terminator = CR LF;
+getVal {
+out &quot;GET / HTTP/1.1\nHost: www.google.co.jp\n&quot;;
+in &quot;%39c&quot;;
+ExtraInput = Ignore;
+}
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="ioc-st-cmd">
+<h3>5. IOC 初期化スクリプト &quot;st.cmd&quot; の編集<a class="headerlink" href="#ioc-st-cmd" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>IOC初期化スクリプト ( iocBoot/iochttp_req/st.cmd ) に、以下の情報を記載する．</p>
+<ul class="simple">
+<li><p>StreamDeviceを使用する場合、protocolsディレクトリの位置を記載する．</p></li>
+<li><p>初期化時にロードするデータベースファイルを記載する．</p></li>
+<li><p>ethernetケーブルなどの、ハードウェアを使用する場合は、設定を記載する．</p></li>
+</ul>
+</li>
+<li><p>ここでは、以下を記載する．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">epicsEnvSet</span><span class="p">(</span> <span class="s2">&quot;STREAM_PROTOCOL_PATH&quot;</span><span class="p">,</span> <span class="s2">&quot;.:../../protocols&quot;</span> <span class="p">)</span>
+<span class="n">dbLoadRecords</span><span class="p">(</span> <span class="s2">&quot;db/http_req.db&quot;</span><span class="p">,</span> <span class="s2">&quot;user=epics&quot;</span> <span class="p">)</span>
+<span class="n">drvAsynIPPortConfigure</span> <span class="s2">&quot;web&quot;</span><span class="p">,</span> <span class="s2">&quot;www.google.co.jp:80&quot;</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span>
+</pre></div>
+</div>
+</li>
+<li><p>スクリプトに実行権限を与えておく．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ chmod u+x $HOME/epics/app/http_req/iocBoot/iochttp_req/st.cmd
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="make-st-cmd">
+<h3>6. make 及び、初期化スクリプト &quot;st.cmd&quot; の実行<a class="headerlink" href="#make-st-cmd" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>ベースディレクトリにて make する．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd $HOME/epics/app/http_req/
+$ make distclean
+$ make
+</pre></div>
+</div>
+</li>
+<li><p>初期化スクリプトを実行する．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd $HOME/epics/app/http_req/iocBoot/iochttp_req/
+$ sudo ./st.cmd
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="id6">
+<h2>IOCの動作状況の確認<a class="headerlink" href="#id6" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<div class="section" id="epics">
+<h3>EPICSコンソール上での確認<a class="headerlink" href="#epics" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>EPICSコンソールへエラーなく遷移していることを確認．</p></li>
+<li><p>以下を実行．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">epics</span><span class="o">&gt;</span> <span class="n">dbpf</span> <span class="n">http</span><span class="p">:</span><span class="n">get</span> <span class="mi">0</span>
+<span class="n">epics</span><span class="o">&gt;</span> <span class="n">dbgf</span> <span class="n">http</span><span class="p">:</span><span class="n">get</span>
+</pre></div>
+</div>
+</li>
+<li><p>戻り値は、</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">DBF_STRING</span><span class="p">:</span>         <span class="s2">&quot;HTTP/1.1 200 OK&quot;</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="ca">
+<h3>ローカルからのCA<a class="headerlink" href="#ca" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>epics-baseがインストールされているIOC/OPIでは、PV(Process Variable)にCA(Channel Access)が可能</p></li>
+<li><p>別コンソールを立ち上げて、以下コマンドを実行</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>epics@raspberrypi: ~ $ caget http:get
+http:get  HTTP/1.1 200 OK
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="opi-macos-ca">
+<h3>OPI（手元macOS）からのCA<a class="headerlink" href="#opi-macos-ca" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>同一ネットワークにLAN接続してある OPI(手元PC:macOS)からCA可能．</p></li>
+<li><p>以下、IPアドレス/ポート番号の設定を環境変数にセット．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ export EPICS_CA_ADDR_LIST=&quot;169.254.202.104:5064&quot;
+
+
+( e.g.1 $ export EPICS_CA_ADDR_LIST=&quot;1.2.3.255 8.9.10.255&quot; etc. )
+or
+( e.g.2 $ export EPICS_CA_ADDR_LIST=&quot;1.1.1.1&quot; and,  )
+(       $ export EPICS_CA_SERVER_PORT=5064 etc.     )
+</pre></div>
+</div>
+</li>
+<li><p>コンソールからCA．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ caget http:get
+</pre></div>
+</div>
+</li>
+<li><p>pyEpicsからCA．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ python3
+&gt;&gt;&gt; import epics
+&gt;&gt;&gt; epics.caget( &quot;http:get&quot; )
+&#39;HTTP/1.1 200 OK&#39;
+</pre></div>
+</div>
+</li>
+</ul>
+<a class="reference internal image-reference" href="../../_images/example1__httpRequest_test.png"><img alt="../../_images/example1__httpRequest_test.png" class="align-center" src="../../_images/example1__httpRequest_test.png" style="width: 600px;" /></a>
+<ul class="simple">
+<li><p>OPIからIOCを介して、制御( HTTPリクエスト ) を実施することができた．</p></li>
+</ul>
+</div>
+</div>
+<div class="section" id="url">
+<h2>参考URL<a class="headerlink" href="#url" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<ul class="simple">
+<li><p>参考ノート： &quot;<a class="reference external" href="https://note.com/dev_associate/n/nfa4605c70f60">https://note.com/dev_associate/n/nfa4605c70f60</a>&quot;, &quot;<a class="reference external" href="https://note.com/dev_associate/n/nd886d700b10a">https://note.com/dev_associate/n/nd886d700b10a</a>&quot;</p></li>
+<li><p>OPI/IOC通信時のポート番号、IPアドレスの設定 ( <a class="reference external" href="https://epics.anl.gov/EpicsDocumentation/AppDevManuals/ChannelAccess/cadoc_4.htm">https://epics.anl.gov/EpicsDocumentation/AppDevManuals/ChannelAccess/cadoc_4.htm</a> )</p></li>
+</ul>
+</div>
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../../index.html">目次</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">基本動作例１： Googleにtelnet接続するEPICS制御</a><ul>
+<li><a class="reference internal" href="#id1">検証目標</a></li>
+<li><a class="reference internal" href="#id2">前提条件</a></li>
+<li><a class="reference internal" href="#ioc">IOC構築</a><ul>
+<li><a class="reference internal" href="#id3">IOC構築の手順</a></li>
+<li><a class="reference internal" href="#id4">1. ベースアプリの作成</a></li>
+<li><a class="reference internal" href="#configure-release">2. 共通コンパイル設定事項の編集 ( configure/RELEASE )</a></li>
+<li><a class="reference internal" href="#id5">3. データベースファイルとコンパイルの準備</a></li>
+<li><a class="reference internal" href="#streamdevice-protocol">4. StreamDeviceの設定ファイル ( &quot;protocol&quot; )の作成</a></li>
+<li><a class="reference internal" href="#ioc-st-cmd">5. IOC 初期化スクリプト &quot;st.cmd&quot; の編集</a></li>
+<li><a class="reference internal" href="#make-st-cmd">6. make 及び、初期化スクリプト &quot;st.cmd&quot; の実行</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#id6">IOCの動作状況の確認</a><ul>
+<li><a class="reference internal" href="#epics">EPICSコンソール上での確認</a></li>
+<li><a class="reference internal" href="#ca">ローカルからのCA</a></li>
+<li><a class="reference internal" href="#opi-macos-ca">OPI（手元macOS）からのCA</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#url">参考URL</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>前のトピックへ</h4>
+  <p class="topless"><a href="vocabulary.html"
+                        title="前の章へ">EPICSの用語集</a></p>
+  <h4>次のトピックへ</h4>
+  <p class="topless"><a href="example2__arduino_ADConvertor.html"
+                        title="次の章へ">基本動作例２： ArduinoのAD変換端子からの入力読取り</a></p>
+  <div role="note" aria-label="source link">
+    <h3>このページ</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/epics/rst/example1__httpRequest_to_Google.rst.txt"
+            rel="nofollow">ソースコードを表示</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">クイック検索</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="検索" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>ナビゲーション</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="総合索引"
+             >索引</a></li>
+        <li class="right" >
+          <a href="example2__arduino_ADConvertor.html" title="基本動作例２： ArduinoのAD変換端子からの入力読取り"
+             >次へ</a> |</li>
+        <li class="right" >
+          <a href="vocabulary.html" title="EPICSの用語集"
+             >前へ</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">EPICSの備忘録  ドキュメント</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="epics_index.html" >EPICSとは</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">基本動作例１： Googleにtelnet接続するEPICS制御</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2022, 西田 賢人.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>

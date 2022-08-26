@@ -1,0 +1,471 @@
+
+
+<!doctype html>
+
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>基本動作例２： ArduinoのAD変換端子からの入力読取り &#8212; EPICSの備忘録  ドキュメント</title>
+    <link rel="stylesheet" href="../../_static/bizstyle.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../_static/translations.js"></script>
+    <script src="../../_static/bizstyle.js"></script>
+    <link rel="index" title="索引" href="../../genindex.html" />
+    <link rel="search" title="検索" href="../../search.html" />
+    <link rel="next" title="基本動作例３： EPICS-ArduinoによるLチカ (ON/OFF) 制御" href="example3__arduino_LEDcontrol01.html" />
+    <link rel="prev" title="基本動作例１： Googleにtelnet接続するEPICS制御" href="example1__httpRequest_to_Google.html" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <!--[if lt IE 9]>
+    <script src="_static/css3-mediaqueries.js"></script>
+    <![endif]-->
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>ナビゲーション</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="総合索引"
+             accesskey="I">索引</a></li>
+        <li class="right" >
+          <a href="example3__arduino_LEDcontrol01.html" title="基本動作例３： EPICS-ArduinoによるLチカ (ON/OFF) 制御"
+             accesskey="N">次へ</a> |</li>
+        <li class="right" >
+          <a href="example1__httpRequest_to_Google.html" title="基本動作例１： Googleにtelnet接続するEPICS制御"
+             accesskey="P">前へ</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">EPICSの備忘録  ドキュメント</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="epics_index.html" accesskey="U">EPICSとは</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">基本動作例２： ArduinoのAD変換端子からの入力読取り</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="arduinoad">
+<h1>基本動作例２： ArduinoのAD変換端子からの入力読取り<a class="headerlink" href="#arduinoad" title="このヘッドラインへのパーマリンク">¶</a></h1>
+<div class="section" id="id1">
+<h2>検証目標<a class="headerlink" href="#id1" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<ul class="simple">
+<li><p>ハードウェア（Arduino）を遠隔制御する検証．</p></li>
+</ul>
+</div>
+<div class="section" id="id2">
+<h2>前提条件<a class="headerlink" href="#id2" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<ul class="simple">
+<li><p>IOCは <strong>&quot;RaspberryPi&quot;</strong> 、OPIは手元PCのmacOS、制御機器は <strong>&quot;Arduino Uno&quot;</strong> ．</p></li>
+<li><p>Arduino-RaspberryPi間はUSB接続、RaspberryPi-mac間はLANケーブルで接続する．</p></li>
+<li><p>Arduinoの5V-GND端子間に 1KΩ抵抗x2個、さらにLEDを直列に接続し、さらに抵抗の中間地点に Arduino A0端子を接続する．A0から、A/D変換(ADC)によってデジタル値に変換した値を読み取る．</p></li>
+<li><p>制御モジュールとして、 <strong>&quot;StremDevice&quot;</strong> を使用する．</p></li>
+<li><p>その他、 <strong>asyn</strong> , <strong>&quot;pyEpics&quot;</strong> を適宜使用する．</p></li>
+<li><p>作業ディレクトリ： ${HOME}/epics/app/simpleRead/  ( ${HOME}=/home/epics/ )</p></li>
+</ul>
+</div>
+<div class="section" id="arduino-adc">
+<h2>Arduinoプログラム（ADC )の転送<a class="headerlink" href="#arduino-adc" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<ul class="simple">
+<li><p>Arduino プログラムは以下である．</p></li>
+</ul>
+<div class="literal-block-wrapper docutils container" id="id6">
+<div class="code-block-caption"><span class="caption-text">A Arduino program to measure the voltage between 2 registers.</span><a class="headerlink" href="#id6" title="このコードへのパーマリンク">¶</a></div>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span>
+<span class="c1">// use A0-plug to check the voltage. //</span>
+<span class="c1">//</span>
+<span class="c1">// parameters                        //</span>
+
+<span class="kt">int</span> <span class="n">analogPin</span>   <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+<span class="kt">int</span> <span class="n">val</span>         <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+<span class="kt">int</span> <span class="n">sampleRate</span>  <span class="o">=</span> <span class="mi">19200</span><span class="p">;</span>
+<span class="kt">int</span> <span class="n">interval_ms</span> <span class="o">=</span> <span class="mi">1000</span>
+
+
+<span class="kt">void</span> <span class="n">setup</span><span class="p">()</span> <span class="p">{</span>
+   <span class="n">Serial</span><span class="p">.</span><span class="n">begin</span><span class="p">(</span> <span class="n">sampleRate</span> <span class="p">);</span>
+<span class="p">}</span>
+
+<span class="kt">void</span> <span class="n">loop</span><span class="p">()</span> <span class="p">{</span>
+  <span class="n">val</span> <span class="o">=</span> <span class="n">analogRead</span><span class="p">(</span> <span class="n">analogPin</span> <span class="p">);</span>
+  <span class="n">Serial</span><span class="p">.</span><span class="n">println</span><span class="p">(</span><span class="n">val</span><span class="p">);</span>
+  <span class="n">delay</span><span class="p">(</span> <span class="n">interval_ms</span> <span class="p">);</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<ul class="simple">
+<li><p>上記プログラムは、<strong>Arduino IDE</strong> を使用してArduinoへ転送しておく．（手元PCからでも勿論、可）</p></li>
+</ul>
+</div>
+<div class="section" id="ioc">
+<h2>IOC構築<a class="headerlink" href="#ioc" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<div class="section" id="id3">
+<h3>IOC構築 / テスト の手順<a class="headerlink" href="#id3" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul class="simple">
+<li><p>アプリ名は、参考URL（下記）に従い、simpleReadとする．</p></li>
+<li><p>また、.dbやレコード名などは、全てsimpleReadへ統一する．</p></li>
+<li><p>IOC-App 構築の手順は、以下である．</p>
+<ol class="arabic simple">
+<li><p><strong>ベースアプリ</strong> の作成．</p></li>
+<li><p><strong>configure/RELEASE</strong> に共有するモジュールのインストールパスを追記．</p></li>
+<li><p><strong>&quot;simpleReadApp&quot;</strong> 内の データベース情報、及び、コンパイル用のMakefileへ追記する．</p></li>
+<li><p><strong>StreamDevice</strong> 用の <strong>プロトコル</strong> を、 <strong>protocols/simpleRead.proto</strong> として作成する．</p></li>
+<li><p>IOC初期化スクリプト( <strong>iocBoot/iocsimpleRead/st.cmd</strong> ) を編集し、実行可能とする．</p></li>
+<li><p>make 、及び、st.cmdの実行、camonitorにより、経時変化を観察する．</p></li>
+</ol>
+</li>
+</ul>
+<p>以下、上記手順について詳述する．</p>
+</div>
+<div class="section" id="id4">
+<h3>1. ベースアプリの作成<a class="headerlink" href="#id4" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>makeBaseApp.plを用いたベースアプリの作成</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ mkdir -p ~/epics/app/simpleRead
+$ cd  ~/epics/app/simpleRead
+$ makeBaseApp.pl -t ioc simpleRead
+$ makeBaseApp.pl -i -t ioc simpleRead
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="configure-release">
+<h3>2. 共通コンパイル設定事項の編集 ( configure/RELEASE )<a class="headerlink" href="#configure-release" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>configure/RELEASEに、共通のコンパイル設定（モジュールの場所等、）を例えば以下のように記載する．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ASYN</span>   <span class="o">=</span> <span class="o">/</span><span class="n">home</span><span class="o">/</span><span class="n">epics</span><span class="o">/</span><span class="n">epics</span><span class="o">/</span><span class="n">support</span><span class="o">/</span><span class="n">asyn</span>
+<span class="n">STREAM</span> <span class="o">=</span> <span class="o">/</span><span class="n">home</span><span class="o">/</span><span class="n">epics</span><span class="o">/</span><span class="n">epics</span><span class="o">/</span><span class="n">support</span><span class="o">/</span><span class="n">StreamDevice</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="id5">
+<h3>3. データベースファイルとコンパイルの準備<a class="headerlink" href="#id5" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>データベース及び使用するモジュールの情報を記載し、${HOME}/epics/app/simpleRead/simpleReadApp/Db/simpleRead.dbを作成する．</p>
+<div class="literal-block-wrapper docutils container" id="id7">
+<div class="code-block-caption"><span class="caption-text">simpleRead.db</span><a class="headerlink" href="#id7" title="このコードへのパーマリンク">¶</a></div>
+<div class="highlight-shell notranslate"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4
+5
+6
+7</pre></div></td><td class="code"><div class="highlight"><pre><span></span>record<span class="o">(</span>longin,<span class="s2">&quot;epics:simpleRead&quot;</span><span class="o">)</span>
+<span class="o">{</span>
+  field<span class="o">(</span>DESC, <span class="s2">&quot;A/D convertor raw input signal&quot;</span> <span class="o">)</span>
+  field<span class="o">(</span>DTYP, <span class="s2">&quot;stream&quot;</span><span class="o">)</span>
+  field<span class="o">(</span>INP, <span class="s2">&quot;@simpleRead.proto getval PS1&quot;</span><span class="o">)</span>
+  field<span class="o">(</span>SCAN, <span class="s2">&quot;I/O Intr&quot;</span><span class="o">)</span>
+<span class="o">}</span>
+</pre></div>
+</td></tr></table></div>
+</div>
+</li>
+<li><p>データベースのコンパイル対象として、上記の&quot;simpleRead.db&quot;を追加．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">@</span> <span class="n">simpleReadApp</span><span class="o">/</span><span class="n">Db</span><span class="o">/</span><span class="n">Makefile</span>
+
+<span class="n">DB</span> <span class="o">+=</span> <span class="n">simpleRead</span><span class="o">.</span><span class="n">db</span>
+</pre></div>
+</div>
+</li>
+<li><p>その他モジュールを利用する場合は、IOCの通信コードのコンパイルに使用するモジュール情報を、 &quot;simpleReadApp/src/Makefile&quot; に記載し、コンパイルできるようにする．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">@</span> <span class="n">simpleReadApp</span><span class="o">/</span><span class="n">src</span><span class="o">/</span><span class="n">Makefile</span>
+
+<span class="n">simpleRead_DBD</span>  <span class="o">+=</span> <span class="n">stream</span><span class="o">.</span><span class="n">dbd</span>
+<span class="n">simpleRead_DBD</span>  <span class="o">+=</span> <span class="n">asyn</span><span class="o">.</span><span class="n">dbd</span>
+<span class="n">simpleRead_DBD</span>  <span class="o">+=</span> <span class="n">drvAsynSerialPort</span><span class="o">.</span><span class="n">dbd</span>
+
+<span class="n">simpleRead_LIBS</span> <span class="o">+=</span> <span class="n">stream</span>
+<span class="n">simpleRead_LIBS</span> <span class="o">+=</span> <span class="n">asyn</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="streamdevice-protocol">
+<h3>4. StreamDeviceの設定ファイル ( &quot;protocol&quot; )の作成<a class="headerlink" href="#streamdevice-protocol" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>ディレクトリ &quot;protocols&quot;を作成し、StreamDeviceの入出力情報を記載する．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ mkdir $HOME/epics/app/simpleRead/protocols
+</pre></div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id8">
+<div class="code-block-caption"><span class="caption-text">simpleRead.proto</span><a class="headerlink" href="#id8" title="このコードへのパーマリンク">¶</a></div>
+<div class="highlight-shell notranslate"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4
+5</pre></div></td><td class="code"><div class="highlight"><pre><span></span><span class="nv">Terminator</span> <span class="o">=</span> CR LF<span class="p">;</span>
+
+getVal<span class="o">{</span>
+  in <span class="s2">&quot;%d&quot;</span><span class="p">;</span>
+<span class="o">}</span>
+</pre></div>
+</td></tr></table></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="ioc-st-cmd">
+<h3>5. IOC 初期化スクリプト &quot;st.cmd&quot; の編集<a class="headerlink" href="#ioc-st-cmd" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>IOC初期化スクリプト ( iocBoot/iocsimpleRead/st.cmd ) に、以下の情報を記載する．</p>
+<blockquote>
+<div><div class="literal-block-wrapper docutils container" id="id9">
+<div class="code-block-caption"><span class="caption-text">st.cmd</span><a class="headerlink" href="#id9" title="このコードへのパーマリンク">¶</a></div>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="ch">#!../../bin/linux-arm/simpleRead</span>
+
+<span class="c1">#- You may have to change simpleRead to something else</span>
+<span class="c1">#- everywhere it appears in this file</span>
+
+&lt; envPaths
+
+<span class="c1"># -- n.k. added -- #</span>
+epicsEnvSet<span class="o">(</span><span class="s2">&quot;STREAM_PROTOCOL_PATH&quot;</span>, <span class="s2">&quot;.:../../protocols&quot;</span><span class="o">)</span>
+
+<span class="nb">cd</span> <span class="s2">&quot;</span><span class="si">${</span><span class="nv">TOP</span><span class="si">}</span><span class="s2">&quot;</span>
+
+<span class="c1">## Register all support components</span>
+<span class="hll">dbLoadDatabase <span class="s2">&quot;dbd/simpleRead.dbd&quot;</span>
+</span>simpleRead_registerRecordDeviceDriver pdbbase
+
+<span class="c1">## Load record instances</span>
+<span class="c1">#dbLoadRecords(&quot;db/xxx.db&quot;,&quot;user=epics&quot;)</span>
+<span class="c1"># -- n.k. added -- #</span>
+<span class="hll">dbLoadRecords <span class="o">(</span><span class="s2">&quot;db/simpleRead.db&quot;</span><span class="o">)</span>
+</span>
+<span class="c1"># drvGenericSerialConfigure( &quot;PS1&quot;, &quot;/dev/ttyACM0&quot; )</span>
+<span class="c1"># asynSetPortOption( &quot;PS1&quot;, &quot;baud&quot;, &quot;19200&quot; )</span>
+<span class="hll">drvAsynSerialPortConfigure <span class="o">(</span><span class="s2">&quot;PS1&quot;</span>,<span class="s2">&quot;/dev/ttyACM0&quot;</span><span class="o">)</span>
+</span><span class="hll">asynSetOption <span class="o">(</span><span class="s2">&quot;PS1&quot;</span>, <span class="m">0</span>, <span class="s2">&quot;baud&quot;</span>, <span class="s2">&quot;19200&quot;</span><span class="o">)</span>
+</span><span class="c1"># -- n.k. added -- #</span>
+
+<span class="nb">cd</span> <span class="s2">&quot;</span><span class="si">${</span><span class="nv">TOP</span><span class="si">}</span><span class="s2">/iocBoot/</span><span class="si">${</span><span class="nv">IOC</span><span class="si">}</span><span class="s2">&quot;</span>
+iocInit
+
+<span class="c1">## Start any sequence programs</span>
+<span class="c1">#seq sncxxx,&quot;user=epics&quot;</span>
+</pre></div>
+</div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>(隘路事項) dbLoadRecord, dbLoadDatabaseの順番が逆になったりすると、うまく動作しない．しかも、&quot;.db&quot;ファイルの１行目がおかしいというエラーメッセージがでるので、ミスリーディングである．st.cmd前後の状態も確認すべきである．</p>
+</div>
+</div></blockquote>
+</li>
+<li><p>スクリプトに実行権限を与えておく．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ chmod u+x $HOME/epics/app/simpleRead/iocBoot/iocsimpleRead/st.cmd
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="make-st-cmd">
+<h3>6. make 及び、初期化スクリプト &quot;st.cmd&quot; の実行<a class="headerlink" href="#make-st-cmd" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>ベースディレクトリにて make する．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd $HOME/epics/app/simpleRead/
+$ make distclean
+$ make
+</pre></div>
+</div>
+</li>
+<li><p>初期化スクリプトを実行する．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd $HOME/epics/app/simpleRead/iocBoot/iocsimpleRead/
+$ sudo ./st.cmd
+</pre></div>
+</div>
+</li>
+<li><p>make 完了後の最終的なディレクトリツリーは以下．</p></li>
+</ul>
+<div class="literal-block-wrapper docutils container" id="id10">
+<div class="code-block-caption"><span class="caption-text">Directory tree after compilation.</span><a class="headerlink" href="#id10" title="このコードへのパーマリンク">¶</a></div>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>epics@raspberrypi:~/epics/app/simpleRead $ tree
+.
+├── Makefile
+├── bin
+│   └── linux-arm
+│       └── simpleRead
+├── configure
+│   ├── CONFIG
+│   ├── CONFIG_SITE
+│   ├── Makefile
+│   ├── O.Common
+│   ├── O.linux-arm
+│   │   └── Makefile
+│   ├── RELEASE
+│   ├── RULES
+│   ├── RULES.ioc
+│   ├── RULES_DIRS
+│   └── RULES_TOP
+├── db
+│   └── simpleRead.db
+├── dbd
+│   └── simpleRead.dbd
+├── iocBoot
+│   ├── Makefile
+│   └── iocsimpleRead
+│       ├── Makefile
+│       ├── envPaths
+│       └── st.cmd
+├── lib
+│   └── linux-arm
+├── protocols
+│   └── simpleRead.proto
+└── simpleReadApp
+    ├── Db
+    │   ├── Makefile
+    │   ├── O.Common
+    │   ├── O.linux-arm
+    │   │   └── Makefile
+    │   └── simpleRead.db
+    ├── Makefile
+    └── src
+        ├── Makefile
+        ├── O.Common
+        │   └── simpleRead.dbd
+        ├── O.linux-arm
+        │   ├── Makefile
+        │   ├── simpleRead
+        │   ├── simpleRead.dbd.d
+        │   ├── simpleReadMain.d
+        │   ├── simpleReadMain.o
+        │   ├── simpleRead_registerRecordDeviceDriver.cpp
+        │   ├── simpleRead_registerRecordDeviceDriver.d
+        │   └── simpleRead_registerRecordDeviceDriver.o
+        └── simpleReadMain.cpp
+
+<span class="m">19</span> directories, <span class="m">33</span> files
+epics@raspberrypi:~/epics/app/simpleRead $ 
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="section" id="adc">
+<h2>ADCの動作状況の確認<a class="headerlink" href="#adc" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<div class="section" id="camonitor">
+<h3>ローカルからのcamonitor<a class="headerlink" href="#camonitor" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>別コンソールを立ち上げて、以下コマンドを実行</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>epics@raspberrypi: ~ $ camonitor epics:simpleRead
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="opi-macos-ca">
+<h3>OPI（手元macOS）からのCA<a class="headerlink" href="#opi-macos-ca" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>pyEpicsからCA．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ python3
+&gt;&gt;&gt; import epics
+&gt;&gt;&gt; epics.caget    ( &quot;epics:simpleRead&quot; )
+&gt;&gt;&gt; epics.camonitor( &quot;epics:simpleRead&quot; )
+</pre></div>
+</div>
+</li>
+<li><p>OPIからIOCを介して、制御( 電圧モニタ ) を実施することができた．</p></li>
+</ul>
+</div>
+</div>
+<div class="section" id="url">
+<h2>参考URL<a class="headerlink" href="#url" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<ul class="simple">
+<li><p>Arduino-EPICS サンプル ( KEK-EPICS Users JP, <a class="reference external" href="https://cerldev.kek.jp/trac/EpicsUsersJP/wiki/epics/arduino/simpleRead">https://cerldev.kek.jp/trac/EpicsUsersJP/wiki/epics/arduino/simpleRead</a> )</p></li>
+</ul>
+</div>
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../../index.html">目次</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">基本動作例２： ArduinoのAD変換端子からの入力読取り</a><ul>
+<li><a class="reference internal" href="#id1">検証目標</a></li>
+<li><a class="reference internal" href="#id2">前提条件</a></li>
+<li><a class="reference internal" href="#arduino-adc">Arduinoプログラム（ADC )の転送</a></li>
+<li><a class="reference internal" href="#ioc">IOC構築</a><ul>
+<li><a class="reference internal" href="#id3">IOC構築 / テスト の手順</a></li>
+<li><a class="reference internal" href="#id4">1. ベースアプリの作成</a></li>
+<li><a class="reference internal" href="#configure-release">2. 共通コンパイル設定事項の編集 ( configure/RELEASE )</a></li>
+<li><a class="reference internal" href="#id5">3. データベースファイルとコンパイルの準備</a></li>
+<li><a class="reference internal" href="#streamdevice-protocol">4. StreamDeviceの設定ファイル ( &quot;protocol&quot; )の作成</a></li>
+<li><a class="reference internal" href="#ioc-st-cmd">5. IOC 初期化スクリプト &quot;st.cmd&quot; の編集</a></li>
+<li><a class="reference internal" href="#make-st-cmd">6. make 及び、初期化スクリプト &quot;st.cmd&quot; の実行</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#adc">ADCの動作状況の確認</a><ul>
+<li><a class="reference internal" href="#camonitor">ローカルからのcamonitor</a></li>
+<li><a class="reference internal" href="#opi-macos-ca">OPI（手元macOS）からのCA</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#url">参考URL</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>前のトピックへ</h4>
+  <p class="topless"><a href="example1__httpRequest_to_Google.html"
+                        title="前の章へ">基本動作例１： Googleにtelnet接続するEPICS制御</a></p>
+  <h4>次のトピックへ</h4>
+  <p class="topless"><a href="example3__arduino_LEDcontrol01.html"
+                        title="次の章へ">基本動作例３： EPICS-ArduinoによるLチカ (ON/OFF) 制御</a></p>
+  <div role="note" aria-label="source link">
+    <h3>このページ</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/epics/rst/example2__arduino_ADConvertor.rst.txt"
+            rel="nofollow">ソースコードを表示</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">クイック検索</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="検索" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>ナビゲーション</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="総合索引"
+             >索引</a></li>
+        <li class="right" >
+          <a href="example3__arduino_LEDcontrol01.html" title="基本動作例３： EPICS-ArduinoによるLチカ (ON/OFF) 制御"
+             >次へ</a> |</li>
+        <li class="right" >
+          <a href="example1__httpRequest_to_Google.html" title="基本動作例１： Googleにtelnet接続するEPICS制御"
+             >前へ</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">EPICSの備忘録  ドキュメント</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="epics_index.html" >EPICSとは</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">基本動作例２： ArduinoのAD変換端子からの入力読取り</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2022, 西田 賢人.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>

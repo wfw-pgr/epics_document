@@ -1,0 +1,202 @@
+
+
+<!doctype html>
+
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EPICSサーバの導入について &#8212; EPICSの備忘録  ドキュメント</title>
+    <link rel="stylesheet" href="../../_static/bizstyle.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../_static/translations.js"></script>
+    <script src="../../_static/bizstyle.js"></script>
+    <link rel="index" title="索引" href="../../genindex.html" />
+    <link rel="search" title="検索" href="../../search.html" />
+    <link rel="next" title="EPICSの用語集" href="vocabulary.html" />
+    <link rel="prev" title="EPICSとは" href="epics_index.html" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <!--[if lt IE 9]>
+    <script src="_static/css3-mediaqueries.js"></script>
+    <![endif]-->
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>ナビゲーション</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="総合索引"
+             accesskey="I">索引</a></li>
+        <li class="right" >
+          <a href="vocabulary.html" title="EPICSの用語集"
+             accesskey="N">次へ</a> |</li>
+        <li class="right" >
+          <a href="epics_index.html" title="EPICSとは"
+             accesskey="P">前へ</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">EPICSの備忘録  ドキュメント</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="epics_index.html" accesskey="U">EPICSとは</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">EPICSサーバの導入について</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="epics">
+<h1>EPICSサーバの導入について<a class="headerlink" href="#epics" title="このヘッドラインへのパーマリンク">¶</a></h1>
+<p>ここでは、EPICSサーバの初期設定、及び、基本動作テストについて記載する．</p>
+<div class="section" id="id1">
+<h2>環境<a class="headerlink" href="#id1" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<p>以下の環境を想定する．</p>
+<ul class="simple">
+<li><p>IOCとして使用するPC： <strong>Raspberry Pi 2 Model B</strong></p></li>
+<li><p>OS : Raspbian</p></li>
+<li><p>user名：epics</p></li>
+<li><p>EPICS導入ディレクトリ （環境変数${EPICS_BASE}）： /home/epics/epics/epics-base/</p></li>
+</ul>
+</div>
+<div class="section" id="epics-epics-base">
+<h2>EPICS( epics-base ) のインストール<a class="headerlink" href="#epics-epics-base" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<div class="section" id="epcis-base">
+<h3>epcis-baseのダウンロード及びインストール<a class="headerlink" href="#epcis-base" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>baseの本家ウェブサイト( <a class="reference external" href="https://docs.epics-controls.org/projects/how-tos/en/latest/getting-started/installation.html">https://docs.epics-controls.org/projects/how-tos/en/latest/getting-started/installation.html</a> )に従う.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ git clone --recursive https://github.com/epics-base/epics-base.git
+$ cd epics-base
+$ make
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="id2">
+<h3>環境変数の設定<a class="headerlink" href="#id2" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>以下を ${HOME}/.zshrc や ${HOME}/.bash_profile 等へ書き込む</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>export EPICS_BASE=${HOME}/epics/epics-base
+export EPICS_HOST_ARCH=$(${EPICS_BASE}/startup/EpicsHostArch)
+export PATH=${EPICS_BASE}/bin/${EPICS_HOST_ARCH}:${PATH}
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="epics-base">
+<h3>epics-baseのテスト<a class="headerlink" href="#epics-base" title="このヘッドラインへのパーマリンク">¶</a></h3>
+<ul>
+<li><p>以下の、データベースファイル( <strong>.dbファイル</strong> ,example.db )を作成する．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">record</span><span class="p">(</span><span class="n">ai</span><span class="p">,</span> <span class="s2">&quot;temperature:water&quot;</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="n">field</span><span class="p">(</span><span class="n">DESC</span><span class="p">,</span> <span class="s2">&quot;Water temperature in the fish tank&quot;</span><span class="p">)</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</li>
+<li><p>以下、コマンドにて実行する．</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ softIoc -d example.db
+epics&gt;
+( EPICSコンソールに入る．新規コンソールを立ち上げて、以下を実行. )
+$ caput temperature:water 22
+$ caget temperature:water
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="id3">
+<h2>その他、モジュールのインストール<a class="headerlink" href="#id3" title="このヘッドラインへのパーマリンク">¶</a></h2>
+<ul class="simple">
+<li><p>EPICSサーバを使用する際に、ハードウェア機器に応じて、拡張モジュールを使用する事が多い．</p></li>
+<li><p>導入するモジュールは例えば、以下．</p>
+<ul>
+<li><p>ASYN (Asynchronous (非同期通信用モジュール)re2cが必要)</p></li>
+<li><p>Stream Devices (バイトストリーム処理用モジュール：例えば1バイト文字列を利用した制御RS-232C等)</p></li>
+<li><p>seq (シーケンサー, C言語ライクな状態記述言語によるプログラム)</p></li>
+<li><p>devGpio ( Raspberry Pi のGPIO端子の制御用モジュール、主はエラーで動作できていない．)</p></li>
+</ul>
+</li>
+<li><p>インストールは各websiteに従えば、問題なくインストール可能．</p></li>
+</ul>
+</div>
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../../index.html">目次</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">EPICSサーバの導入について</a><ul>
+<li><a class="reference internal" href="#id1">環境</a></li>
+<li><a class="reference internal" href="#epics-epics-base">EPICS( epics-base ) のインストール</a><ul>
+<li><a class="reference internal" href="#epcis-base">epcis-baseのダウンロード及びインストール</a></li>
+<li><a class="reference internal" href="#id2">環境変数の設定</a></li>
+<li><a class="reference internal" href="#epics-base">epics-baseのテスト</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#id3">その他、モジュールのインストール</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>前のトピックへ</h4>
+  <p class="topless"><a href="epics_index.html"
+                        title="前の章へ">EPICSとは</a></p>
+  <h4>次のトピックへ</h4>
+  <p class="topless"><a href="vocabulary.html"
+                        title="次の章へ">EPICSの用語集</a></p>
+  <div role="note" aria-label="source link">
+    <h3>このページ</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/epics/rst/basic_startup.rst.txt"
+            rel="nofollow">ソースコードを表示</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">クイック検索</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="検索" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>ナビゲーション</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="総合索引"
+             >索引</a></li>
+        <li class="right" >
+          <a href="vocabulary.html" title="EPICSの用語集"
+             >次へ</a> |</li>
+        <li class="right" >
+          <a href="epics_index.html" title="EPICSとは"
+             >前へ</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">EPICSの備忘録  ドキュメント</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="epics_index.html" >EPICSとは</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">EPICSサーバの導入について</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2022, 西田 賢人.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>
